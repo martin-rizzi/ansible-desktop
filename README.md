@@ -37,8 +37,9 @@ ansible-playbook -i inventory.ini playbook.yml -K --check --diff
 | `tailscale`   | 6. Tailscale                   | repo + servicio habilitado                    |
 | `starship`    | 7. Starship prompt             | instala e integra en `.zshrc`                 |
 | `node`        | 8. Node.js                     | repo NodeSource + Node + PM2 global           |
-| `vscode`      | 9. VSCode                      | opcional, comentar si no se usa en la PC      |
-| `suspend-fix` | 10. Fix suspend/resume i915 PSR| tag `never` — solo corre con `--tags` explícito |
+| `claude-code` | 9. Claude Code + skill superpowers | npm global + `claude plugin install`      |
+| `vscode`      | 10. VSCode                     | opcional, comentar si no se usa en la PC      |
+| `suspend-fix` | 11. Fix suspend/resume i915 PSR| tag `never` — solo corre con `--tags` explícito |
 
 ## Notas por sección
 
@@ -52,6 +53,10 @@ ansible-playbook -i inventory.ini playbook.yml -K --check --diff
   con `become: false` para no dejar el archivo root-owned.
 - **node**: el repo NodeSource se agrega con `creates:` como guardia de
   idempotencia sobre el script `curl | bash`.
+- **claude-code**: instala el CLI vía `npm -g` (depende de que `node`
+  haya corrido antes) y el plugin/skill `superpowers@claude-plugins-official`
+  con `claude plugin install`, guardado con `claude plugin list` +
+  `when` para no reinstalar si ya está.
 - **vscode**: sección opcional — comentarla si esta PC no la necesita.
 - **suspend-fix**: fix puntual para el bug conocido de kwin_wayland + i915
   PSR (pantalla negra en resume, iGPU Intel UHD 630/CometLake y

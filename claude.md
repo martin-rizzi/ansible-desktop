@@ -25,8 +25,8 @@ leer de arriba a abajo para un solo host.
 
 - **Todo tarea tiene `tags`.** Cada sección numerada en los comentarios
   (`# N. Nombre`) corresponde a un tag (`base`, `cli`, `zsh-plugins`,
-  `docker`, `ansible`, `tailscale`, `starship`, `node`, `vscode`,
-  `suspend-fix`). Al agregar una sección nueva, sumale su tag y
+  `docker`, `ansible`, `tailscale`, `starship`, `node`, `claude-code`,
+  `vscode`, `suspend-fix`). Al agregar una sección nueva, sumale su tag y
   actualizá la lista de tags en el README.
 - **Numeración de comentarios en orden.** Si se inserta una sección en
   el medio, renumerar los comentarios `# N. ...` de las secciones

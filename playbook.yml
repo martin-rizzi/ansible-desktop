@@ -247,7 +247,29 @@
       tags: [node]
 
     # ------------------------------------------------------------------
-    # 9. VSCode (opcional, comentar si no lo usás en esta PC)
+    # 9. Claude Code + skill superpowers
+    # ------------------------------------------------------------------
+    - name: Instalar Claude Code globalmente (via npm)
+      npm:
+        name: "@anthropic-ai/claude-code"
+        global: true
+      tags: [claude-code]
+
+    - name: Verificar plugins de Claude Code instalados
+      become: false
+      command: claude plugin list
+      register: claude_plugins
+      changed_when: false
+      tags: [claude-code]
+
+    - name: Instalar skill superpowers
+      become: false
+      command: claude plugin install superpowers@claude-plugins-official
+      when: "'superpowers@claude-plugins-official' not in claude_plugins.stdout"
+      tags: [claude-code]
+
+    # ------------------------------------------------------------------
+    # 10. VSCode (opcional, comentar si no lo usás en esta PC)
     # ------------------------------------------------------------------
     - name: Importar key de Microsoft
       rpm_key:
@@ -271,7 +293,7 @@
       tags: [vscode]
 
     # ------------------------------------------------------------------
-    # 10. Fix suspend/resume - pantalla negra en iGPU Intel (i915 PSR)
+    # 11. Fix suspend/resume - pantalla negra en iGPU Intel (i915 PSR)
     # ------------------------------------------------------------------
     # Aplica solo con --tags suspend-fix (no corre en un run normal).
     # Pensado para el bug conocido de kwin_wayland + i915 PSR en resume
