@@ -1,0 +1,292 @@
+---
+# playbook.yml
+# Provisiona una Fedora Workstation (KDE) nueva con el stack DevOps + CLI diario.
+# Uso: ansible-playbook -i inventory.ini playbook.yml -K
+#   -K pide la password de sudo (become)
+
+- name: Setup Fedora - Stack DevOps + CLI
+  hosts: fedora_local
+  become: true
+  vars:
+    target_user: "{{ ansible_env.SUDO_USER | default(lookup('env','USER')) }}"
+    node_version: "22"
+
+  tasks:
+
+    # ------------------------------------------------------------------
+    # 1. Sistema base y repos
+    # ------------------------------------------------------------------
+    - name: Actualizar cache e instalar dnf-plugins-core
+      dnf:
+        name: dnf-plugins-core
+        state: present
+        update_cache: true
+      tags: [base]
+
+    - name: Instalar paquetes base
+      dnf:
+        name:
+          - git
+          - curl
+          - wget
+          - jq
+          - unzip
+          - gcc
+          - make
+          - python3-pip
+          - policycoreutils-python-utils
+        state: present
+      tags: [base]
+
+    # ------------------------------------------------------------------
+    # 2. Terminal / CLI tools
+    # ------------------------------------------------------------------
+    - name: Instalar herramientas de terminal
+      dnf:
+        name:
+          - zsh
+          - tmux
+          - htop
+          - btop
+          - fzf
+          - ripgrep
+          - fd-find
+          - bat
+          - tree
+          - neovim
+          - net-tools
+          - bind-utils
+        state: present
+      tags: [cli]
+
+    - name: Verificar si oh-my-zsh ya está instalado
+      stat:
+        path: "/home/{{ target_user }}/.oh-my-zsh"
+      register: omz_installed
+      become: false
+      tags: [cli]
+
+    - name: Instalar oh-my-zsh (sin cambiar shell automáticamente)
+      become: false
+      shell: >
+        sh -c "$(curl -fsSL
+        https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+        "" --unattended --keep-zshrc
+      when: not omz_installed.stat.exists
+      tags: [cli]
+
+    - name: Setear zsh como shell por defecto para el usuario
+      user:
+        name: "{{ target_user }}"
+        shell: /usr/bin/zsh
+      tags: [cli]
+
+    # ------------------------------------------------------------------
+    # 3. Plugins de zsh / oh-my-zsh
+    # ------------------------------------------------------------------
+    - name: Clonar zsh-autosuggestions
+      become: false
+      git:
+        repo: https://github.com/zsh-users/zsh-autosuggestions
+        dest: "/home/{{ target_user }}/.oh-my-zsh/custom/plugins/zsh-autosuggestions"
+        depth: 1
+      tags: [zsh-plugins]
+
+    - name: Clonar zsh-syntax-highlighting
+      become: false
+      git:
+        repo: https://github.com/zsh-users/zsh-syntax-highlighting
+        dest: "/home/{{ target_user }}/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting"
+        depth: 1
+      tags: [zsh-plugins]
+
+    - name: Activar plugins en .zshrc
+      become: false
+      lineinfile:
+        path: "/home/{{ target_user }}/.zshrc"
+        regexp: '^plugins=\('
+        line: "plugins=(git zsh-autosuggestions zsh-syntax-highlighting fzf docker docker-compose ansible sudo colored-man-pages history-substring-search extract)"
+      tags: [zsh-plugins]
+
+    - name: Generar completado de starship para zsh
+      become: false
+      file:
+        path: "/home/{{ target_user }}/.zfunc"
+        state: directory
+        mode: "0755"
+      tags: [zsh-plugins, starship]
+
+    - name: Agregar fpath de .zfunc y compinit al .zshrc
+      become: false
+      blockinfile:
+        path: "/home/{{ target_user }}/.zshrc"
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - zsh completions"
+        insertbefore: '^plugins=\('
+        block: |
+          fpath+=~/.zfunc
+          autoload -Uz compinit
+          compinit
+      tags: [zsh-plugins, starship]
+
+    # ------------------------------------------------------------------
+    # 4. Docker + Docker Compose
+    # ------------------------------------------------------------------
+    - name: Agregar repo oficial de Docker
+      get_url:
+        url: https://download.docker.com/linux/fedora/docker-ce.repo
+        dest: /etc/yum.repos.d/docker-ce.repo
+      tags: [docker]
+
+    - name: Instalar Docker Engine + plugins
+      dnf:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+      tags: [docker]
+
+    - name: Habilitar e iniciar Docker
+      systemd:
+        name: docker
+        enabled: true
+        state: started
+      tags: [docker]
+
+    - name: Agregar usuario al grupo docker
+      user:
+        name: "{{ target_user }}"
+        groups: docker
+        append: true
+      tags: [docker]
+
+    # ------------------------------------------------------------------
+    # 5. Ansible (para poder gestionar todo desde la propia PC)
+    # ------------------------------------------------------------------
+    - name: Instalar Ansible
+      dnf:
+        name: ansible
+        state: present
+      tags: [ansible]
+
+    # ------------------------------------------------------------------
+    # 6. Tailscale
+    # ------------------------------------------------------------------
+    - name: Agregar repo de Tailscale
+      get_url:
+        url: https://pkgs.tailscale.com/stable/fedora/tailscale.repo
+        dest: /etc/yum.repos.d/tailscale.repo
+      tags: [tailscale]
+
+    - name: Instalar Tailscale
+      dnf:
+        name: tailscale
+        state: present
+      tags: [tailscale]
+
+    - name: Habilitar Tailscale
+      systemd:
+        name: tailscaled
+        enabled: true
+        state: started
+      tags: [tailscale]
+
+    # ------------------------------------------------------------------
+    # 7. Starship prompt
+    # ------------------------------------------------------------------
+    - name: Verificar si Starship ya está instalado
+      stat:
+        path: /usr/local/bin/starship
+      register: starship_installed
+      tags: [starship]
+
+    - name: Instalar Starship
+      shell: >
+        curl -sS https://starship.rs/install.sh | sh -s -- --yes
+      when: not starship_installed.stat.exists
+      tags: [starship]
+
+    - name: Generar archivo de completado de starship
+      become: false
+      shell: starship completions zsh > /home/{{ target_user }}/.zfunc/_starship
+      args:
+        creates: "/home/{{ target_user }}/.zfunc/_starship"
+      tags: [starship]
+
+    - name: Agregar init de Starship al .zshrc
+      become: false
+      lineinfile:
+        path: "/home/{{ target_user }}/.zshrc"
+        line: 'eval "$(starship init zsh)"'
+        create: true
+        insertafter: EOF
+      tags: [starship]
+
+    # ------------------------------------------------------------------
+    # 8. Node.js (para proyectos Next.js / PM2)
+    # ------------------------------------------------------------------
+    - name: Agregar repo NodeSource
+      shell: >
+        curl -fsSL https://rpm.nodesource.com/setup_{{ node_version }}.x | bash -
+      args:
+        creates: /etc/yum.repos.d/nodesource-nodejs.repo
+      tags: [node]
+
+    - name: Instalar Node.js
+      dnf:
+        name: nodejs
+        state: present
+      tags: [node]
+
+    - name: Instalar PM2 globalmente
+      npm:
+        name: pm2
+        global: true
+      tags: [node]
+
+    # ------------------------------------------------------------------
+    # 9. VSCode (opcional, comentar si no lo usás en esta PC)
+    # ------------------------------------------------------------------
+    - name: Importar key de Microsoft
+      rpm_key:
+        key: https://packages.microsoft.com/keys/microsoft.asc
+        state: present
+      tags: [vscode]
+
+    - name: Agregar repo de VSCode
+      yum_repository:
+        name: vscode
+        description: Visual Studio Code
+        baseurl: https://packages.microsoft.com/yumrepos/vscode
+        gpgcheck: true
+        gpgkey: https://packages.microsoft.com/keys/microsoft.asc
+      tags: [vscode]
+
+    - name: Instalar VSCode
+      dnf:
+        name: code
+        state: present
+      tags: [vscode]
+
+    # ------------------------------------------------------------------
+    # 10. Fix suspend/resume - pantalla negra en iGPU Intel (i915 PSR)
+    # ------------------------------------------------------------------
+    # Aplica solo con --tags suspend-fix (no corre en un run normal).
+    # Pensado para el bug conocido de kwin_wayland + i915 PSR en resume
+    # con iGPU Intel (UHD 630 / CometLake y similares): pantalla negra
+    # total que no responde y obliga a hard reset. Requiere reboot para
+    # tomar efecto.
+    - name: Comprobar kernel args actuales
+      command: grubby --info=DEFAULT
+      register: grubby_info
+      changed_when: false
+      tags: [suspend-fix, never]
+
+    - name: Deshabilitar i915 PSR (Panel Self Refresh) a nivel kernel
+      command: grubby --update-kernel=ALL --args="i915.enable_psr=0"
+      when: "'i915.enable_psr=0' not in grubby_info.stdout"
+      tags: [suspend-fix, never]
+
+  handlers: []
