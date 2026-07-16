@@ -9,7 +9,6 @@
   become: true
   vars:
     target_user: "{{ ansible_env.SUDO_USER | default(lookup('env','USER')) }}"
-    node_version: "22"
 
   tasks:
 
@@ -225,34 +224,20 @@
       tags: [starship]
 
     # ------------------------------------------------------------------
-    # 8. Node.js (para proyectos Next.js / PM2)
+    # 8. Claude Code + skill superpowers
     # ------------------------------------------------------------------
-    - name: Agregar repo NodeSource
-      shell: >
-        curl -fsSL https://rpm.nodesource.com/setup_{{ node_version }}.x | bash -
-      args:
-        creates: /etc/yum.repos.d/nodesource-nodejs.repo
-      tags: [node]
+    - name: Verificar si Claude Code ya está instalado
+      become: false
+      command: which claude
+      register: claude_installed
+      failed_when: false
+      changed_when: false
+      tags: [claude-code]
 
-    - name: Instalar Node.js
-      dnf:
-        name: nodejs
-        state: present
-      tags: [node]
-
-    - name: Instalar PM2 globalmente
-      npm:
-        name: pm2
-        global: true
-      tags: [node]
-
-    # ------------------------------------------------------------------
-    # 9. Claude Code + skill superpowers
-    # ------------------------------------------------------------------
-    - name: Instalar Claude Code globalmente (via npm)
-      npm:
-        name: "@anthropic-ai/claude-code"
-        global: true
+    - name: Instalar Claude Code (installer nativo)
+      become: false
+      shell: curl -fsSL https://claude.ai/install.sh | bash
+      when: claude_installed.rc != 0
       tags: [claude-code]
 
     - name: Verificar plugins de Claude Code instalados
@@ -269,7 +254,7 @@
       tags: [claude-code]
 
     # ------------------------------------------------------------------
-    # 10. VSCode (opcional, comentar si no lo usás en esta PC)
+    # 9. VSCode (opcional, comentar si no lo usás en esta PC)
     # ------------------------------------------------------------------
     - name: Importar key de Microsoft
       rpm_key:
@@ -293,7 +278,7 @@
       tags: [vscode]
 
     # ------------------------------------------------------------------
-    # 11. Fix suspend/resume - pantalla negra en iGPU Intel (i915 PSR)
+    # 10. Fix suspend/resume - pantalla negra en iGPU Intel (i915 PSR)
     # ------------------------------------------------------------------
     # Aplica solo con --tags suspend-fix (no corre en un run normal).
     # Pensado para el bug conocido de kwin_wayland + i915 PSR en resume

@@ -25,7 +25,7 @@ leer de arriba a abajo para un solo host.
 
 - **Todo tarea tiene `tags`.** Cada sección numerada en los comentarios
   (`# N. Nombre`) corresponde a un tag (`base`, `cli`, `zsh-plugins`,
-  `docker`, `ansible`, `tailscale`, `starship`, `node`, `claude-code`,
+  `docker`, `ansible`, `tailscale`, `starship`, `claude-code`,
   `vscode`, `suspend-fix`). Al agregar una sección nueva, sumale su tag y
   actualizá la lista de tags en el README.
 - **Numeración de comentarios en orden.** Si se inserta una sección en
@@ -95,5 +95,8 @@ ansible-playbook -i inventory.ini playbook.yml -K --check --diff
 - No asumir Ubuntu/Debian: es Fedora, dnf5. Nada de `apt`.
 - No instalar kubectl/terraform salvo pedido explícito — se sacaron
   del playbook a propósito porque no se usan todavía.
+- No instalar Node.js/npm salvo pedido explícito — se sacó del
+  playbook a propósito, no se usa. Por eso Claude Code se instala con
+  su installer nativo (`curl | bash`) y no vía `npm -g`.
 - No cambiar `hosts: fedora_local` ni el `inventory.ini` — este repo
   es de un solo host local, no un fleet.
